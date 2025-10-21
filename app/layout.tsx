@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: 'ATLAS - Documentation N8N automatique',
   description: 'Générez automatiquement une documentation professionnelle pour vos workflows N8N',
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: '/images/logo.png',
+    shortcut: '/images/logo.png',
+    apple: '/images/logo.png',
   },
 };
 
