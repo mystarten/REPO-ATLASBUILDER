@@ -8,9 +8,6 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'ATLAS - Documentation N8N automatique',
   description: 'Générez automatiquement une documentation professionnelle pour vos workflows N8N',
-  icons: {
-    icon: '/images/favicon.ico',  // ← Change ici
-  },
 };
 
 export const viewport: Viewport = {
@@ -27,6 +24,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        <link rel="icon" href="/images/favicon.ico" sizes="any" />
+        <link rel="icon" href="/images/logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/images/logo.png" />
+      </head>
       <body className={`${inter.className} pt-14`}>
         <Navbar />
         {children}
