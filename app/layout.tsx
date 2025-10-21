@@ -9,7 +9,9 @@ export const metadata: Metadata = {
   title: 'ATLAS - Documentation N8N automatique',
   description: 'Générez automatiquement une documentation professionnelle pour vos workflows N8N',
   icons: {
-    icon: '/images/logo.png',
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
   },
 };
 
@@ -27,9 +29,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      <head>
-        <link rel="icon" type="image/png" href="/images/logo.png" />
-      </head>
       <body className={`${inter.className} pt-14`}>
         <Navbar />
         {children}
