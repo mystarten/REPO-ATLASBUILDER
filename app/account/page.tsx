@@ -90,8 +90,7 @@ export default function AccountPage() {
         return;
       }
 
-      // Exemple d'utilisation vers le début ou où tu souhaites le bouton
-<ManageSubscriptionButton />
+    
 
 
       // Sauvegarder DIRECTEMENT dans Supabase
@@ -114,24 +113,7 @@ export default function AccountPage() {
     }
   };
 
-  const handlePortalAccess = async () => {
-    setActionLoading(true);
-    try {
-      const res = await fetch('/api/create-portal-session', { method: 'POST' });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else if (data.error === 'Aucun abonnement trouvé') {
-        alert('Vous n\'avez pas encore d\'abonnement actif. Rendez-vous sur la page Tarifs pour souscrire.');
-        router.push('/pricing');
-      }
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert('Erreur lors de l\'accès au portail');
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -223,15 +205,8 @@ export default function AccountPage() {
               {/* Actions */}
               <div className="space-y-3">
                 {!isFree && (
-                  <button
-                    onClick={handlePortalAccess}
-                    disabled={actionLoading}
-                    className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-3 px-6 rounded-xl hover:shadow-xl hover:shadow-blue-500/50 transition disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    <CreditCard className="w-5 h-5" />
-                    {actionLoading ? 'Chargement...' : 'Gérer mon abonnement'}
-                  </button>
-                )}
+  <ManageSubscriptionButton />
+)}
 
                 <Link
                   href="/pricing"
