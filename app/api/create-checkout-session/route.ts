@@ -27,6 +27,10 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/generate?success=true`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/pricing?canceled=true`,
+      
+      // 👇 LIGNE AJOUTÉE : Active les codes promotionnels
+      allow_promotion_codes: true,
+      
       metadata: { user_id: user.id },
       subscription_data: { metadata: { user_id: user.id } },
     });
