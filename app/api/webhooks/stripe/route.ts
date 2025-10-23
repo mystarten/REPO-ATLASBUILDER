@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         console.log('🆔 Client reference ID:', session.client_reference_id);
         console.log('🆔 Metadata user_id:', session.metadata?.user_id);
 
-        // AMÉLIORATION 1 : Trouver l'utilisateur de plusieurs façons
+        // Trouver l'utilisateur de plusieurs façons
         let userId = session.client_reference_id || session.metadata?.user_id;
         
         // Si pas d'user_id, chercher par email dans Supabase
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
         console.log(`🎯 Plan identifié: ${plan}`);
         console.log(`📊 Limite: ${limit} templates`);
 
-        // AMÉLIORATION 2 : Update profile avec plus de détails
+        // Update profile
         const { data: updatedProfile, error: profileError } = await supabaseAdmin
           .from('profiles')
           .update({
@@ -129,7 +129,7 @@ export async function POST(req: Request) {
           console.log('✅ Profile mis à jour:', updatedProfile);
         }
 
-        // AMÉLIORATION 3 : Create/update subscription
+        // Create/update subscription
         const { data: createdSub, error: subError } = await supabaseAdmin
           .from('subscriptions')
           .upsert({
@@ -154,30 +154,72 @@ export async function POST(req: Request) {
         break;
       }
 
-      // AMÉLIORATION 4 : Gérer les mises à jour d'abonnement (renouvellements, changements de plan)
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         
         console.log('🔄 === SUBSCRIPTION UPDATED ===');
         console.log('🆔 Subscription ID:', subscription.id);
         console.log('📊 Statut:', subscription.status);
+        console.log('🆔 Customer ID:', subscription.customer);
 
         const priceId = subscription.items.data[0].price.id;
         const { plan, limit } = getPlanFromPriceId(priceId);
 
-        // Trouver l'utilisateur via stripe_customer_id
-        const { data: profile, error: findError } = await supabaseAdmin
+        // Trouver l'utilisateur de plusieurs façons
+        let profile = null;
+
+        // Méthode 1 : Chercher par stripe_customer_id
+        const { data: profileByCustomerId, error: errorById } = await supabaseAdmin
           .from('profiles')
           .select('id, email')
           .eq('stripe_customer_id', subscription.customer)
           .single();
 
-        if (!profile || findError) {
-          console.error('❌ Profil non trouvé pour customer:', subscription.customer);
-          return NextResponse.json({ error: 'Profile not found' }, { status: 400 });
+        if (profileByCustomerId && !errorById) {
+          profile = profileByCustomerId;
+          console.log('✅ User trouvé par stripe_customer_id:', profile.email);
+        } else {
+          console.warn('⚠️ Pas trouvé par stripe_customer_id, recherche par email...');
+          
+          // Méthode 2 : Récupérer l'email depuis Stripe et chercher dans Supabase
+          try {
+            const customer = await stripe.customers.retrieve(subscription.customer as string);
+            
+            if (customer && !customer.deleted && customer.email) {
+              console.log('📧 Email récupéré depuis Stripe:', customer.email);
+              
+              const { data: profileByEmail, error: errorByEmail } = await supabaseAdmin
+                .from('profiles')
+                .select('id, email')
+                .eq('email', customer.email)
+                .single();
+              
+              if (profileByEmail && !errorByEmail) {
+                profile = profileByEmail;
+                console.log('✅ User trouvé par email:', profile.email);
+                
+                // Mettre à jour le stripe_customer_id manquant
+                await supabaseAdmin
+                  .from('profiles')
+                  .update({ stripe_customer_id: subscription.customer })
+                  .eq('id', profile.id);
+                
+                console.log('✅ stripe_customer_id mis à jour');
+              }
+            }
+          } catch (stripeError: any) {
+            console.error('❌ Erreur récupération customer Stripe:', stripeError.message);
+          }
         }
 
-        console.log('✅ User trouvé:', profile.email);
+        if (!profile) {
+          console.error('❌ Profil non trouvé pour customer:', subscription.customer);
+          // Ne pas retourner d'erreur pour éviter que Stripe réessaie en boucle
+          return NextResponse.json({ 
+            received: true, 
+            warning: 'Profile not found but acknowledged' 
+          }, { status: 200 });
+        }
 
         // Mettre à jour le profil (passer à "free" si annulé)
         const newPlan = subscription.status === 'active' ? plan : 'free';
@@ -188,6 +230,7 @@ export async function POST(req: Request) {
           .update({
             subscription_tier: newPlan,
             templates_limit: newLimit,
+            stripe_customer_id: subscription.customer,
             updated_at: new Date().toISOString(),
           })
           .eq('id', profile.id);
@@ -201,13 +244,15 @@ export async function POST(req: Request) {
         // Mettre à jour la subscription
         const { error: subUpdateError } = await supabaseAdmin
           .from('subscriptions')
-          .update({
+          .upsert({
+            id: subscription.id,
+            user_id: profile.id,
+            stripe_customer_id: subscription.customer,
             status: subscription.status,
             price_id: priceId,
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
             updated_at: new Date().toISOString(),
-          })
-          .eq('id', subscription.id);
+          });
 
         if (subUpdateError) {
           console.error('❌ Erreur update subscription:', subUpdateError);

@@ -28,10 +28,12 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
+        // Validation des mots de passe
         if (password !== confirmPassword) {
           throw new Error('Les mots de passe ne correspondent pas');
         }
 
+        // Inscription
         const { data, error } = await supabaseBrowser.auth.signUp({
           email,
           password,
@@ -42,16 +44,30 @@ export default function LoginPage() {
 
         if (error) throw error;
 
+        // Vérifier si l'email est déjà utilisé
         if (data.user && data.user.identities && data.user.identities.length === 0) {
           throw new Error('Cet email est déjà utilisé. Veuillez vous connecter.');
         }
 
-        if (data.user && data.session) {
-          router.push(next);
-        } else {
-          setSent(true);
+        // Gérer la redirection
+        if (data.user) {
+          if (data.session) {
+            // Session créée immédiatement = confirmation email désactivée
+            console.log('✅ Inscription réussie, redirection...');
+            
+            // Attendre que le trigger crée le profil
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Redirection forcée (reload complet)
+            window.location.href = next;
+          } else {
+            // Email de confirmation requis
+            console.log('📧 Email de confirmation envoyé');
+            setSent(true);
+          }
         }
       } else {
+        // Connexion
         const { error } = await supabaseBrowser.auth.signInWithPassword({
           email,
           password,
