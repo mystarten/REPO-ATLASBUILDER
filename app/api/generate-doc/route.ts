@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    const { workflowJson, notes, format, customBrandName } = await req.json(); // ✅ Ajouté customBrandName
+    const { workflowJson, notes, format, customBrandName } = await req.json();
 
     // Vérifier l'authentification
     const supabaseAuth = await createSupabaseServerClient();
@@ -57,48 +57,26 @@ export async function POST(req: Request) {
 
     // Préparer les données pour N8N avec branding personnalisé
     const webhookData = {
-      // Workflow
       workflowJson: workflowJsonString,
-
-      // Notes utilisateur
       notes: notes || '',
-
-      // Informations utilisateur
       user_id: user.id,
       user_email: user.email,
       user_plan: userPlan,
-
-      // Format de sortie
       output_format: format || 'notes',
-
-      // ✅ BRANDING PERSONNALISÉ (priorité au formulaire)
       custom_brand_name: customBrandName || profile?.company_name || null,
       has_custom_branding: userPlan === 'enterprise' && !!(customBrandName || profile?.company_name),
-
-      // Métadonnées
       generated_at: new Date().toISOString(),
       webhookUrl: process.env.N8N_WEBHOOK_URL,
       executionMode: 'production',
-
-      // ✅ PERMISSIONS SELON LE PLAN
       permissions: {
-        // PDF disponible à partir de Starter
         can_export_pdf: ['starter', 'pro', 'enterprise'].includes(userPlan),
-        
-        // Pas de watermark à partir de Pro
         has_watermark: ['free', 'starter'].includes(userPlan),
         no_watermark: ['pro', 'enterprise'].includes(userPlan),
-        
-        // Branding perso uniquement Enterprise
         can_use_custom_branding: userPlan === 'enterprise',
-        
-        // Résumé des features
         pdf_export: ['starter', 'pro', 'enterprise'].includes(userPlan),
         remove_watermark: ['pro', 'enterprise'].includes(userPlan),
         custom_branding: userPlan === 'enterprise',
       },
-
-      // Limites de templates
       templates_used: templatesUsed,
       templates_limit: templatesLimit,
       subscription_tier: userPlan,
@@ -118,14 +96,45 @@ export async function POST(req: Request) {
       throw new Error(`Webhook N8N error: ${webhookResponse.status}`);
     }
 
-    const webhookResult = await webhookResponse.json();
-    console.log('✅ Webhook N8N réussi');
+    // ✅ GESTION INTELLIGENTE : JSON OU PDF
+    const contentType = webhookResponse.headers.get('content-type');
+    
+    if (contentType?.includes('application/pdf')) {
+      // 🔴 C'est un PDF binaire, le renvoyer tel quel
+      console.log('📄 Réponse PDF détectée');
+      const pdfBuffer = await webhookResponse.arrayBuffer();
+      
+      return new NextResponse(pdfBuffer, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="documentation-${Date.now()}.pdf"`,
+        },
+      });
+    } else {
+      // 🟢 C'est du JSON (ou base64)
+      const webhookResult = await webhookResponse.json();
+      console.log('✅ Webhook N8N réussi (JSON)');
 
-    return NextResponse.json({
-      success: true,
-      message: 'Documentation générée avec succès',
-      data: webhookResult,
-    });
+      // Si le JSON contient un PDF en base64, le gérer
+      if (webhookResult.pdf && typeof webhookResult.pdf === 'string') {
+        console.log('📄 PDF base64 détecté dans JSON');
+        // Le front va gérer le base64
+        return NextResponse.json({
+          success: true,
+          message: 'Documentation générée avec succès',
+          data: webhookResult,
+          isPdf: true,
+        });
+      }
+
+      // Réponse JSON standard
+      return NextResponse.json({
+        success: true,
+        message: 'Documentation générée avec succès',
+        data: webhookResult,
+      });
+    }
 
   } catch (error: any) {
     console.error('❌ Erreur generate-doc:', error);

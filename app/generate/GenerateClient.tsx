@@ -141,49 +141,78 @@ export default function GenerateClient({ userEmail, profile, companyName }: Gene
   });
 
   const handleGenerate = async () => {
-    if (!file) {
-      setError('Veuillez uploader un fichier JSON');
-      return;
-    }
+  if (!file) {
+    setError('Veuillez uploader un fichier JSON');
+    return;
+  }
 
-    if (usageData && !usageData.allowed) {
-      setShowUpgradeModal(true);
-      return;
-    }
+  if (usageData && !usageData.allowed) {
+    setShowUpgradeModal(true);
+    return;
+  }
 
-    if (format === 'pdf' && usageData?.tier === 'free') {
-      setError('Le format PDF nécessite le plan Starter ou supérieur.');
-      return;
-    }
+  if (format === 'pdf' && usageData?.tier === 'free') {
+    setError('Le format PDF nécessite le plan Starter ou supérieur.');
+    return;
+  }
 
-    setLoading(true);
-    setLoadingProgress(0);
-    setLoadingMessage('Initialisation...');
-    setError(null);
-    setSuccess(false);
+  setLoading(true);
+  setLoadingProgress(0);
+  setLoadingMessage('Initialisation...');
+  setError(null);
+  setSuccess(false);
 
-    try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const jsonContent = JSON.parse(e.target?.result as string);
+  try {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const jsonContent = JSON.parse(e.target?.result as string);
 
-          const response = await fetch('/api/generate-doc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workflowJson: jsonContent,
-              notes,
-              format,
-              customBrandName: customBrandName.trim() || null,
-            }),
-          });
+        const response = await fetch('/api/generate-doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workflowJson: jsonContent,
+            notes,
+            format,
+            customBrandName: customBrandName.trim() || null,
+          }),
+        });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Erreur lors de la génération');
-          }
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erreur lors de la génération');
+        }
 
+        // ✅ VÉRIFIER LE TYPE DE CONTENU
+        const contentType = response.headers.get('content-type');
+
+        if (contentType?.includes('application/pdf')) {
+          // 📄 C'est un PDF binaire, le télécharger directement
+          console.log('📄 PDF binaire détecté');
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          // Extraire le nom du fichier sans l'extension
+          const fileName = file.name.replace('.json', '');
+          a.download = `${fileName}_atlas.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+
+          // Incrémenter l'usage
+          await fetch('/api/increment-usage', { method: 'POST' });
+          await fetchUsageLimits();
+
+          setLoadingProgress(100);
+          setLoadingMessage('Terminé !');
+          setSuccess(true);
+          setFile(null);
+          setNotes('');
+        } else {
+          // 📝 C'est du JSON
           const result = await response.json();
 
           await fetch('/api/increment-usage', { method: 'POST' });
@@ -195,24 +224,27 @@ export default function GenerateClient({ userEmail, profile, companyName }: Gene
           if (result.data) {
             sessionStorage.setItem('generated_doc', JSON.stringify(result.data));
             sessionStorage.setItem('doc_format', format);
+            sessionStorage.setItem('original_filename', file.name.replace('.json', ''));
             window.location.href = '/download';
           } else {
             setSuccess(true);
             setFile(null);
             setNotes('');
           }
-        } catch (err: any) {
-          setError(err.message);
-        } finally {
-          setLoading(false);
         }
-      };
-      reader.readAsText(file);
-    } catch (err: any) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsText(file);
+  } catch (err: any) {
+    setError(err.message);
+    setLoading(false);
+  }
+};
+
 
   const tierInfo = usageData ? getTierInfo(usageData.tier) : getTierInfo('free');
   const isLimitReached = usageData && !usageData.allowed;

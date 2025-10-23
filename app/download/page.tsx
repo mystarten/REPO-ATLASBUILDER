@@ -8,10 +8,12 @@ import Image from 'next/image';
 export default function DownloadPage() {
   const [docData, setDocData] = useState<any>(null);
   const [format, setFormat] = useState<string>('notes');
+  const [originalFilename, setOriginalFilename] = useState<string>('documentation');
 
   useEffect(() => {
     const storedData = sessionStorage.getItem('generated_doc');
     const storedFormat = sessionStorage.getItem('doc_format');
+    const storedFilename = sessionStorage.getItem('original_filename');
     
     if (storedData) {
       setDocData(JSON.parse(storedData));
@@ -19,6 +21,10 @@ export default function DownloadPage() {
     
     if (storedFormat) {
       setFormat(storedFormat);
+    }
+
+    if (storedFilename) {
+      setOriginalFilename(storedFilename);
     }
   }, []);
 
@@ -37,7 +43,7 @@ export default function DownloadPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `documentation-atlas-${Date.now()}.${format === 'pdf' ? 'pdf' : 'txt'}`;
+      a.download = `${originalFilename}_atlas.${format === 'pdf' ? 'pdf' : 'txt'}`;
       a.click();
       URL.revokeObjectURL(url);
       return;
@@ -48,7 +54,7 @@ export default function DownloadPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `documentation-atlas-${Date.now()}.json`;
+    a.download = `${originalFilename}_atlas.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
