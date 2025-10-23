@@ -25,8 +25,9 @@ export async function POST(req: Request) {
       payment_method_types: ['card'],
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/generate?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/pricing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://atlasbuilder.app'}/generate?success=true`,
+cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://atlasbuilder.app'}/pricing?canceled=true`,
+
       
       // 👇 LIGNE AJOUTÉE : Active les codes promotionnels
       allow_promotion_codes: true,
