@@ -6,9 +6,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-11-20.acacia',
 });
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
-    const { priceId } = await req.json();
+    const { priceId, billingPeriod } = await req.json();
 
     const supabase = await createSupabaseServerClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -18,6 +20,7 @@ export async function POST(req: Request) {
     }
 
     console.log('✅ Création session Stripe pour:', user.email, 'UUID:', user.id);
+    console.log('📅 Période de facturation:', billingPeriod || 'monthly');
 
     const session = await stripe.checkout.sessions.create({
       customer_email: user.email,
@@ -26,14 +29,22 @@ export async function POST(req: Request) {
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://atlasbuilder.app'}/generate?success=true`,
-cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://atlasbuilder.app'}/pricing?canceled=true`,
-
+      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://atlasbuilder.app'}/pricing?canceled=true`,
       
-      // 👇 LIGNE AJOUTÉE : Active les codes promotionnels
+      // Active les codes promotionnels
       allow_promotion_codes: true,
       
-      metadata: { user_id: user.id },
-      subscription_data: { metadata: { user_id: user.id } },
+      // Métadonnées pour tracker l'utilisateur ET la période de facturation
+      metadata: { 
+        user_id: user.id,
+        billing_period: billingPeriod || 'monthly',
+      },
+      subscription_data: { 
+        metadata: { 
+          user_id: user.id,
+          billing_period: billingPeriod || 'monthly',
+        } 
+      },
     });
 
     console.log('🟢 Session Stripe créée, url:', session.url);

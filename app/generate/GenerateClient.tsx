@@ -26,7 +26,7 @@ const getTierInfo = (tier: string) => {
     case 'pro':
       return { name: 'Pro', color: 'from-purple-500 to-pink-500', limit: 40 };
     case 'enterprise':
-      return { name: 'Enterprise', color: 'from-yellow-500 to-orange-500', limit: 999 };
+      return { name: 'Enterprise', color: 'from-yellow-500 to-orange-500', limit: 65 };
     default:
       return { name: 'Gratuit', color: 'from-gray-500 to-gray-600', limit: 3 };
   }

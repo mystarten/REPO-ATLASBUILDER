@@ -15,22 +15,33 @@ const supabaseAdmin = createClient(
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function getPlanFromPriceId(priceId: string): { plan: string; limit: number } {
+function getPlanFromPriceId(priceId: string): { plan: string; limit: number; billingPeriod: string } {
   const prices = {
-    starter: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
-    pro: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
-    enterprise: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE,
+    // Prix mensuels
+    starterMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
+    proMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+    enterpriseMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE,
+    // Prix annuels
+    starterAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER_ANNUAL,
+    proAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_ANNUAL,
+    enterpriseAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE_ANNUAL,
   };
 
   console.log('🔍 Price ID reçu:', priceId);
   console.log('📋 Prix configurés:', prices);
 
-  if (priceId === prices.starter) return { plan: 'starter', limit: 20 };
-  if (priceId === prices.pro) return { plan: 'pro', limit: 40 };
-  if (priceId === prices.enterprise) return { plan: 'enterprise', limit: 999999 };
+  // Prix mensuels
+  if (priceId === prices.starterMonthly) return { plan: 'starter', limit: 15, billingPeriod: 'monthly' };
+  if (priceId === prices.proMonthly) return { plan: 'pro', limit: 40, billingPeriod: 'monthly' };
+  if (priceId === prices.enterpriseMonthly) return { plan: 'enterprise', limit: 65, billingPeriod: 'monthly' };
+  
+  // Prix annuels (mêmes limites que mensuel)
+  if (priceId === prices.starterAnnual) return { plan: 'starter', limit: 15, billingPeriod: 'annual' };
+  if (priceId === prices.proAnnual) return { plan: 'pro', limit: 40, billingPeriod: 'annual' };
+  if (priceId === prices.enterpriseAnnual) return { plan: 'enterprise', limit: 65, billingPeriod: 'annual' };
   
   console.warn('⚠️ Price ID non reconnu');
-  return { plan: 'free', limit: 3 };
+  return { plan: 'free', limit: 3, billingPeriod: 'monthly' };
 }
 
 export async function POST(req: Request) {
@@ -67,6 +78,7 @@ export async function POST(req: Request) {
         console.log('📧 Email:', session.customer_email);
         console.log('🆔 Client reference ID:', session.client_reference_id);
         console.log('🆔 Metadata user_id:', session.metadata?.user_id);
+        console.log('📅 Billing period:', session.metadata?.billing_period);
 
         // Trouver l'utilisateur de plusieurs façons
         let userId = session.client_reference_id || session.metadata?.user_id;
@@ -105,10 +117,14 @@ export async function POST(req: Request) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0].price.id;
         const customerId = subscription.customer as string;
-        const { plan, limit } = getPlanFromPriceId(priceId);
+        const { plan, limit, billingPeriod } = getPlanFromPriceId(priceId);
+
+        // Utiliser la billing_period des metadata si disponible, sinon celle détectée
+        const finalBillingPeriod = session.metadata?.billing_period || subscription.metadata?.billing_period || billingPeriod;
 
         console.log(`🎯 Plan identifié: ${plan}`);
         console.log(`📊 Limite: ${limit} templates`);
+        console.log(`📅 Période: ${finalBillingPeriod}`);
 
         // Update profile
         const { data: updatedProfile, error: profileError } = await supabaseAdmin
@@ -138,6 +154,7 @@ export async function POST(req: Request) {
             stripe_customer_id: customerId,
             status: subscription.status,
             price_id: priceId,
+            billing_period: finalBillingPeriod,
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -163,7 +180,10 @@ export async function POST(req: Request) {
         console.log('🆔 Customer ID:', subscription.customer);
 
         const priceId = subscription.items.data[0].price.id;
-        const { plan, limit } = getPlanFromPriceId(priceId);
+        const { plan, limit, billingPeriod } = getPlanFromPriceId(priceId);
+
+        // Utiliser la billing_period des metadata si disponible
+        const finalBillingPeriod = subscription.metadata?.billing_period || billingPeriod;
 
         // Trouver l'utilisateur de plusieurs façons
         let profile = null;
@@ -250,6 +270,7 @@ export async function POST(req: Request) {
             stripe_customer_id: subscription.customer,
             status: subscription.status,
             price_id: priceId,
+            billing_period: finalBillingPeriod,
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
             updated_at: new Date().toISOString(),
           });
@@ -287,6 +308,15 @@ export async function POST(req: Request) {
             })
             .eq('id', profile.id);
 
+          // Marquer la subscription comme canceled
+          await supabaseAdmin
+            .from('subscriptions')
+            .update({
+              status: 'canceled',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', subscription.id);
+
           console.log('✅ User remis en plan gratuit');
         }
 
@@ -294,8 +324,13 @@ export async function POST(req: Request) {
       }
 
       case 'invoice.payment_succeeded':
-      case 'invoice.payment_failed':
         console.log(`📨 Event ${event.type} reçu`);
+        break;
+
+      case 'invoice.payment_failed':
+        console.log(`❌ Event ${event.type} reçu`);
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log('💳 Échec de paiement pour customer:', invoice.customer);
         break;
 
       default:

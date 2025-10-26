@@ -1,14 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Zap, Sparkles, Code, Shield, TrendingUp, HelpCircle, Brain, Rocket, Layers, Star } from 'lucide-react';
+import { Check, Zap, Sparkles, Code, Shield, TrendingUp, HelpCircle, Brain, Rocket, Layers } from 'lucide-react';
 
-const plans = [
+// Configuration des plans avec prix mensuels ET annuels
+const plansConfig = [
   {
     name: 'Gratuit',
     subtitle: 'Pour tester',
-    price: '0€',
-    period: '/mois',
+    monthlyPrice: 0,
+    annualPrice: 0,
     badge: null,
     features: [
       '3 documentations / mois',
@@ -17,7 +18,8 @@ const plans = [
       'Support email',
     ],
     cta: 'Commencer',
-    priceId: null,
+    priceIdMonthly: null,
+    priceIdAnnual: null,
     popular: false,
     color: 'gray',
     icon: Layers,
@@ -25,8 +27,9 @@ const plans = [
   {
     name: 'Starter',
     subtitle: 'Parfait pour démarrer',
-    price: '9€',
-    period: '/mois',
+    monthlyPrice: 9,
+    annualPrice: 8,
+    annualTotal: 96,
     badge: null,
     features: [
       '15 documentations / mois',
@@ -36,16 +39,19 @@ const plans = [
       'Support email',
     ],
     cta: "S'abonner",
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
+    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER,
+    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER_ANNUAL,
     popular: false,
     color: 'cyan',
     icon: Rocket,
+    savings: '11%',
   },
   {
     name: 'Pro',
     subtitle: 'Pour les professionnels exigeants',
-    price: '19€',
-    period: '/mois',
+    monthlyPrice: 19,
+    annualPrice: 15,
+    annualTotal: 180,
     badge: 'RECOMMANDÉ',
     features: [
       '40 documentations / mois',
@@ -55,16 +61,19 @@ const plans = [
       'Support email',
     ],
     cta: "S'abonner",
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO,
+    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO_ANNUAL,
     popular: true,
     color: 'purple',
     icon: Brain,
+    savings: '21%',
   },
   {
     name: 'Enterprise',
     subtitle: 'La solution premium pour grandes entreprises',
-    price: '49€',
-    period: '/mois',
+    monthlyPrice: 49,
+    annualPrice: 42,
+    annualTotal: 504,
     badge: null,
     features: [
       '65 documentations / mois',
@@ -76,10 +85,12 @@ const plans = [
       '⚡ Propulsé par Claude Sonnet 4.5',
     ],
     cta: "S'abonner",
-    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE,
+    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE,
+    priceIdAnnual: process.env.NEXT_PUBLIC_STRIPE_PRICE_ENTERPRISE_ANNUAL,
     popular: false,
     color: 'gradient',
     icon: Sparkles,
+    savings: '14%',
   },
 ];
 
@@ -173,30 +184,40 @@ const faqs = [
   },
   {
     question: "Y a-t-il des frais de configuration ?",
-    answer: 'Non, aucun frais de configuration. Vous payez simplement votre abonnement mensuel.',
+    answer: 'Non, aucun frais de configuration. Vous payez simplement votre abonnement mensuel ou annuel.',
   },
   {
     question: "Que se passe-t-il si je dépasse ma limite mensuelle ?",
     answer: 'Vous pouvez upgrader votre plan à tout moment pour obtenir plus de documentations. Sinon, vous pourrez reprendre le mois suivant.',
   },
+  {
+    question: "Puis-je passer d'un plan annuel à mensuel ?",
+    answer: 'Oui, vous pouvez changer de période de facturation à tout moment depuis le portail client Stripe. Le changement prendra effet au prochain cycle de facturation.',
+  },
 ];
 
 export default function PricingPage() {
   const [loading, setLoading] = useState<string | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
 
-  const handleSubscribe = async (priceId: string | null, planName: string) => {
+  const handleSubscribe = async (plan: typeof plansConfig[0]) => {
+    const priceId = billingPeriod === 'monthly' ? plan.priceIdMonthly : plan.priceIdAnnual;
+    
     if (!priceId) {
       window.location.href = '/login';
       return;
     }
 
-    setLoading(planName);
+    setLoading(plan.name);
 
     try {
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId }),
+        body: JSON.stringify({ 
+          priceId,
+          billingPeriod,
+        }),
       });
 
       const data = await response.json();
@@ -217,7 +238,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#1A1F3A] to-[#0A0E27] relative overflow-hidden">
-      {/* Effets de lumière animés identiques à /generate */}
+      {/* Effets de lumière animés */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-blue-500/30 via-cyan-500/20 to-transparent blur-3xl pointer-events-none" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse pointer-events-none" style={{ animationDelay: '1s' }} />
@@ -225,20 +246,68 @@ export default function PricingPage() {
       <div className="absolute bottom-1/3 left-1/2 w-96 h-96 bg-pink-500/15 rounded-full blur-3xl animate-pulse pointer-events-none" style={{ animationDelay: '1.5s' }} />
       
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        {/* Header avec même style que /generate */}
+        {/* Header */}
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-bold mb-6">
             <span className="block text-white mb-2">Choisissez votre plan</span>
           </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-8">
             Des tarifs simples et transparents pour tous les besoins
           </p>
+
+          {/* Toggle Mensuel / Annuel - VERSION PREMIUM */}
+          <div className="flex flex-col items-center gap-6 mb-4">
+            <div className="inline-flex items-center gap-3 bg-gradient-to-r from-[#0f172a]/90 to-[#1e293b]/90 backdrop-blur-xl border border-[#334155] rounded-2xl p-2 shadow-2xl">
+              <button
+                onClick={() => setBillingPeriod('monthly')}
+                className={`relative px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  billingPeriod === 'monthly'
+                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/50'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Mensuel
+              </button>
+              
+              <button
+                onClick={() => setBillingPeriod('annual')}
+                className={`relative px-8 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  billingPeriod === 'annual'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  Annuel
+                  {billingPeriod === 'annual' && (
+                    <span className="ml-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      -21%
+                    </span>
+                  )}
+                </span>
+              </button>
+            </div>
+            
+            {/* Message sous le toggle */}
+            {billingPeriod === 'annual' && (
+              <div className="flex items-center gap-2 text-sm animate-fade-in">
+                <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 backdrop-blur-xl">
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span className="text-gray-300">
+                    Économisez jusqu'à <span className="font-bold text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text">2 mois gratuits</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
-          {plans.map((plan) => {
+          {plansConfig.map((plan) => {
             const IconComponent = plan.icon;
+            const displayPrice = billingPeriod === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+            
             return (
               <div
                 key={plan.name}
@@ -247,11 +316,26 @@ export default function PricingPage() {
                     ? 'bg-gradient-to-br from-[#8b5cf6]/20 to-[#ec4899]/20 border-2 border-[#8b5cf6]/50 shadow-2xl shadow-purple-500/30'
                     : 'bg-[#0f172a]/80 border border-[#334155]'
                 }`}
-                style={{ minHeight: '580px' }}
+                style={{ minHeight: '620px' }}
               >
                 {plan.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-[#8b5cf6] to-[#ec4899] text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap shadow-lg">
                     {plan.badge}
+                  </div>
+                )}
+
+                {/* Badge économie annuelle - VERSION ÉLÉGANTE */}
+                {billingPeriod === 'annual' && plan.savings && (
+                  <div className="absolute -top-3 right-4">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/50 to-blue-500/50 blur-md rounded-full" />
+                      <div className="relative bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border border-cyan-400/30">
+                        <span className="flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          -{plan.savings}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -272,9 +356,28 @@ export default function PricingPage() {
 
                 <div className="mb-6">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-5xl font-bold text-white">{plan.price}</span>
-                    <span className="text-gray-400 text-lg">{plan.period}</span>
+                    <span className="text-5xl font-bold text-white">{displayPrice}€</span>
+                    <span className="text-gray-400 text-lg">/mois</span>
                   </div>
+                  
+                  {billingPeriod === 'annual' && plan.annualTotal && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+                      <p className="text-xs text-gray-400 px-2">
+                        Soit <span className="text-cyan-400 font-semibold">{plan.annualTotal}€</span> facturé annuellement
+                      </p>
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+                    </div>
+                  )}
+                  
+                  {billingPeriod === 'monthly' && plan.annualPrice && plan.annualPrice < plan.monthlyPrice && (
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
+                      <TrendingUp className="w-3 h-3 text-cyan-400" />
+                      <p className="text-xs text-cyan-400 font-semibold">
+                        {plan.annualPrice}€/mois en annuel
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <ul className="space-y-3 mb-auto">
@@ -289,7 +392,7 @@ export default function PricingPage() {
                 </ul>
 
                 <button
-                  onClick={() => handleSubscribe(plan.priceId || null, plan.name)}
+                  onClick={() => handleSubscribe(plan)}
                   disabled={loading === plan.name}
                   className={`w-full mt-6 py-3 px-6 rounded-xl font-semibold transition-all ${
                     plan.popular
@@ -329,7 +432,7 @@ export default function PricingPage() {
                   <th className="text-left py-4 px-6 text-gray-400 font-semibold">
                     Fonctionnalité
                   </th>
-                  {plans.map((plan) => (
+                  {plansConfig.map((plan) => (
                     <th
                       key={plan.name}
                       className={`py-4 px-6 text-center font-bold ${
@@ -482,6 +585,24 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+
+      {/* Styles pour l'animation fade-in */}
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
