@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import Navbar from '@/components/Navbar';
+import NavbarWrapper from '@/components/NavbarWrapper';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -28,8 +28,8 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/images/logo.png" type="image/png" />
       </head>
-      <body className={`${inter.className} pt-14`}>
-        <Navbar />
+      <body className={inter.className}>
+        <NavbarWrapper />
         {children}
       </body>
     </html>
